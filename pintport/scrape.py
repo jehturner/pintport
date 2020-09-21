@@ -6,6 +6,9 @@ from datetime import datetime as dt
 from bs4 import BeautifulSoup
 import pandas as pd
 
+# Add a pandas_datareader-like data reader class that takes the same arges as
+# the function and provides a .read() method to Asset.
+
 
 # class StripHTML(HTMLParser):
 #     def __init__(self):

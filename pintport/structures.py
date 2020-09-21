@@ -12,15 +12,14 @@ class Source:
     A class describing and abstracting a source of historical pricing
     information for a security.
     """
-    def __init__(self, name, source, query, exchange, symbol=None,
-                 currency='USD'):
-        self.ID = None
-        self.name = name  # duplicates the Asset / source table name?
+    def __init__(self, source, query, symbol, exchange, currency='USD',
+                 ID=None):
         self.source = source
         self.query = query
-        self.exchange = exchange
         self.symbol = symbol
+        self.exchange = exchange
         self.currency = currency
+        self.ID = None
 
         try:
             self.api_key = config['api_keys'][self.source]
@@ -28,15 +27,14 @@ class Source:
             self.api_key = None
 
     def __repr__(self):
-        return("<{0}(name='{name}', source='{source}', query='{query}'"
-               "exchange='{exchange}', symbol='{symbol}', "
-               "currency='{currency}') ID={ID}>".format(
+        return("<{0}(source='{source}', query='{query}', symbol='{symbol}', "
+               "exchange='{exchange}', currency='{currency}', ID={ID})>"\
+               .format(
             self.__class__.__name__,
-            name=self.name,
             source=self.source,
             query=self.query,
-            exchange=self.exchange,
             symbol=self.symbol,
+            exchange=self.exchange,
             currency=self.currency,
             ID=self.ID
         ))
@@ -104,16 +102,17 @@ class _SourceList(MutableSequence):
     def _check_items(self, _list):
 
         ID = self._next_ID()
-        names, IDs = [], []
+        queries, IDs = [], []
 
         # Check input Sources before setting their IDs so as not to change
         # them if the operation fails:
         for item in _list:
             if not isinstance(item, Source):
                 raise ValueError('items must be Source instances')
-            if item.name in names:
-                raise ValueError('duplicate item {}'.format(item.name))
-            names.append(item.name)
+            if (item.query, item.symbol) in queries:
+                raise ValueError("duplicate item: query='{}', symbol='{}'"\
+                                 .format(item.query, item.symbol))
+            queries.append((item.query, item.symbol))
             if item.ID is not None:
                 if item.ID in IDs:
                     raise ValueError('duplicate ID {}'.format(item.ID))
