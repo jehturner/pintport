@@ -1,5 +1,6 @@
-import sqlite3
 from collections.abc import MutableSequence, Iterable
+from copy import copy
+import sqlite3
 
 import pandas_datareader as pdr
 
@@ -65,26 +66,27 @@ class Source:
                                    api_key=self.api_key)
 
 
-class SourceList(MutableSequence):
+class _SourceList(MutableSequence):
     """
     A priority-ordered list of Source instances for a given security, with
     unique identifiers, that can be mapped to a database table and interrogated
     to provide data for a given security.
 
-    This currently allows the same Source to be added to the list more than
-    once, altering the ID each time, and could do with re-thinking a bit, but
-    since it's otherwise a working list object I'll check it in for future
-    reference before restructuring things slightly.
+    This private class is intended to be used by Asset. Its ID numbers need
+    to remain synchronized with those recorded in the asset price data.
     """
     def __init__(self, sources=None):
         super().__init__()
-        self._list = self._check_items(sources, to_list=True)
+        sources = [] if sources is None else copy(sources)
+        self._list = self._check_items(sources)
 
     def __getitem__(self, index):
         return self._list[index]
 
     def __setitem__(self, index, value):
-        self._list[index] = self._check_items(value, to_list=False)
+        _list = self._list.copy()
+        _list[index] = value
+        self._list = self._check_items(_list)
 
     def __delitem__(self, index):
         del self._list[index]
@@ -93,31 +95,35 @@ class SourceList(MutableSequence):
         return len(self._list)
 
     def insert(self, index, value):
-        self._list.insert(index, self._check_item(value))
+        _list = self._list.copy()
+        _list.insert(index, value)
+        self._list = self._check_items(_list)
 
     # inherited append works automatically
 
-    def _check_item(self, item, set_ID=True):
-        if not isinstance(item, Source):
-            raise ValueError('{} items must be Source instances'
-                             .format(self.__class__.__name__))
-        if set_ID is True:
-            item.ID = self._next_ID()
-        elif set_ID is not False:
-            item.ID = set_ID
-        return item
+    def _check_items(self, _list):
 
-    def _check_items(self, items, to_list=False):
-        if items is None:
-            return []
-        if isinstance(items, Iterable):
-            for n, item in enumerate(items, start=self._next_ID()):
-                self._check_item(item, set_ID=n)
-        elif to_list:
-            items = [self._check_item(items)]
-        else:
-            items = self._check_item(items)
-        return items
+        ID = self._next_ID()
+        names, IDs = [], []
+
+        # Check input Sources before setting their IDs so as not to change
+        # them if the operation fails:
+        for item in _list:
+            if not isinstance(item, Source):
+                raise ValueError('items must be Source instances')
+            if item.name in names:
+                raise ValueError('duplicate item {}'.format(item.name))
+            names.append(item.name)
+            if item.ID is not None:
+                if item.ID in IDs:
+                    raise ValueError('duplicate ID {}'.format(item.ID))
+                IDs.append(item.ID)
+        for item in _list:
+            if item.ID is None:
+                item.ID = ID
+                ID += 1
+
+        return _list
 
     def _next_ID(self):
         """
